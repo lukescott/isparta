@@ -19,13 +19,13 @@ module.exports = {
     },
     {
       // 3.   return baz(bar ? 0 : 1);
-      start: { source: 'virgin/actual.js', line: 3, column: 2, name: null },
-      end: { source: 'virgin/actual.js', line: 3, column: 26, name: null },
+      start: { source: 'virgin/actual.js', line: 2, column: 2, name: null },
+      end: { source: 'virgin/actual.js', line: 2, column: 26, name: null },
       skip: undefined
     }
   ],
 
-  functionMap: [
+  fnMap: [
     {
       // 1. ONE.foo = function (bar) {
       name: '(anonymous_1)', line: 1,

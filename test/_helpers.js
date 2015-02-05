@@ -22,7 +22,7 @@ export function getFixturesTest() {
   //
 
   function createFixtureDescription(fixtureName) {
-    let [actual, expect] = [
+    let [actual, expected] = [
       { filename: 'actual.js', access: readFile },
       { filename: 'expectedCover.js', access: require }
     ]
@@ -36,7 +36,7 @@ export function getFixturesTest() {
       });
 
 
-    return {name: fixtureName, actual, expect};
+    return {name: fixtureName, actual, expected};
   }
 
 }
@@ -45,11 +45,9 @@ export function getFixturesTest() {
 
 export function extractCodeExpect(content, location) {
   if (!(content && location)) return '';
+
   let { start, end } = location;
-  debugger;
-  console.log("extractCodeExpect");
-  console.log(location);
-  console.log('\n===', start.line,  end.line );
+
   return start.line === end.line ?
     extractExpectInLine(content[start.line - 1], location) :
     Array.from(

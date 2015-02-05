@@ -1,84 +1,124 @@
 //
 
+import Mocha from 'mocha'
+let {Test, Suite} = Mocha;
+
 import {expect} from 'chai'
 
 import {getFixturesTest, extractCodeExpect} from './_helpers.js';
 
 import {Instrumenter, Reporter} from '../src/isparta';
 
-describe('Isparta instrumenter', function () {
+////
 
-  before(function () {
-    this.instrumenter = new Instrumenter();
+const MAP_TYPES = [
+  {
+    name: 'statement',
+    get fullName() { return `${this.name}Map` },
+    getLocations: (loc) => [loc]
+  },
+  {
+    name: 'fn',
+    get fullName() { return `${this.name}Map` },
+    getLocations: (fn) => [fn.loc]
+  },
+  {
+    name: 'branch',
+    get fullName() { return `${this.name}Map` },
+    getLocations: (br) => br.locations
+  }
+];
+
+////
+
+let instumenterSuite = describe("Isparta instrumenter", function () {
+  before(generateSourceMapTest);
+
+  it('soulhd generate the tests', function () {
+    expect(instumenterSuite.suites.length).to.be.above(0);
   });
 
-  getFixturesTest().map(({name, actual, expect: expected}) => {
-
-    describe(`when ${name}`, function () {
-
-      before(function (done) {
-
-        this.instrumenter.instrument(actual.code, actual.loc, (err) => {
-          if (err) { throw err; }
-
-          let {statementMap, fnMap, branchMap} = this.instrumenter.coverState;
-
-          this.statementMap = values(statementMap);
-          this.functionMap = values(fnMap);
-          this.branchMap = values(branchMap);
-
-          done();
-        });
-
-        function values(arr) { return Object.keys(arr).map(key => arr[key] || {}); }
-
-      });
-
-      [
-        { name: 'statement' },
-        { name: 'function', getLocation: (fn) => [fn.loc] },
-        { name: 'branch', getLocation: (br) => br.locations }
-      ].forEach(function (map) {
-        let mapKey = `${map.name}Map`;
-        map.getLocation = map.getLocation || (loc) => [loc];
-
-
-        it(`should localize the ${map.name}s`, function () {
-          this.current = { mapKey, ...map };
-          this[mapKey].forEach((loc, i) => {
-            this.current.loc = loc;
-            this.current.i = i;
-            expect(loc, `Expect the ${i}-th ${map.name}s to be deeply equal.`)
-              .to.eql(expected.code[mapKey][i] || {});
-          });
-
-          this.current = null;
-        });
-      });
-
-      afterEach(function () {
-        if (!this.current ) {
-          return;
-        }
-        console.log(this.current);
-        var codeLines = actual.code.split('\n');
-        //console.log('expected')
-        //console.log('mapKey', this.mapKey)
-        //console.log(expected.code[mapKey])
-        this.current
-          .getLocation(expected.code[this.current.mapKey][this.current.i])
-          .forEach((loc) => {
-            let expectCode = extractCodeExpect(codeLines, loc);
-            let actualCode = extractCodeExpect(codeLines, loc);
-
-            expect(actualCode, `Expect the ${this.current.i}-th ${this.current.name} to cover the same code snippet.`)
-              .to.equal(expectCode);
-          })
-        ;
-
-      });
-
-    })
-
-  })
 });
+
+function generateSourceMapTest(done) {
+
+  let instrumenter = new Instrumenter();
+  getFixturesTest().map((fixtureTest) => {
+
+    let {name, actual} = fixtureTest;
+
+    instrumenter.instrument(actual.code, actual.loc, (err) => {
+      if (err) { throw err; }
+
+      let fixtureSuite = Suite.create(instumenterSuite, `when ${name}`);
+      fixtureSuite.afterEach('display code snippet diff', displaySnippetError);
+
+      MAP_TYPES
+        .map(testCoverMaps(instrumenter.coverState, fixtureTest))
+        .reduce((coverTests, tests) => coverTests.concat(tests), [])
+        .forEach((test) => fixtureSuite.addTest(test));
+
+
+      done();
+    });
+
+
+  });
+
+
+}
+
+function displaySnippetError() {
+  if (!this.error) {
+    return;
+  }
+
+  let codeLines = this.error.codeLines;
+
+  this.error.expectedLocation.forEach((expectedLoc, i) => {
+    let actualLoc = this.error.actualLocation[i];
+    let expectCode = extractCodeExpect(codeLines, expectedLoc);
+    let actualCode = extractCodeExpect(codeLines, actualLoc);
+    //console.log('<<<<<<<< expectCode | ', expectCode);
+    //console.log('<<<<<<<< actualCode | ', actualCode);
+    expect(actualCode).to.equal(expectCode);
+  });
+
+}
+
+
+function testCoverMaps(maps, fixtureTest) {
+
+  var actualCodeLines = fixtureTest.actual.code.split('\n');
+
+  return function testCoverMap(type) {
+    let mapKey = `${type.name}Map`;
+    let map = values(maps[mapKey] || {});
+
+    return map.map((loc, i) => {
+
+      return new Test(`should localize the ${type.name}s`, locationIt);
+
+      ////
+
+      function locationIt() {
+
+        this.error = {
+          actualLocation: type.getLocations(loc),
+          expectedLocation: type.getLocations(fixtureTest.expected.code[mapKey][i]),
+          codeLines: actualCodeLines
+        };
+
+        expect(loc).to.eql(fixtureTest.expected.code[mapKey][i] || {},
+          `Expect the ${i}-th ${type.name}s to be deeply equal.`);
+
+        this.error = null;
+
+      }
+
+    });
+  }
+
+}
+
+function values(arr) { return Object.keys(arr).map(key => arr[key] || {}); }
