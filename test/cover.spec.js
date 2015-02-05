@@ -92,7 +92,7 @@ function extractExpect(location) {
     ).join('\n');
 }
 
-describe('Isparta instrumenter', function () {
+xdescribe('Isparta instrumenter', function () {
 
   before(function () {
     this.instrumenter = new Instrumenter();
